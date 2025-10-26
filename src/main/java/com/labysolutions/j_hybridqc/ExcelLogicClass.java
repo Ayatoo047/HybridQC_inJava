@@ -22,15 +22,27 @@ import java.util.*;
 
 public class ExcelLogicClass {
 
+//    public ExcelLogicClass(
+//            String filename,
+//            String saveas,
+//            int max_missing_percentage,
+//            int min_perc_polymorphic,
+//            int min_perc_hybridity
+//    ){
+//        this.min_missing_percentage = max_missing_percentage;
+//        this.min_perc_polymorphic = min_perc_polymorphic;
+//        this.min_perc_hybridity = min_perc_hybridity;
+//
+//
+//    }
+
     private Sheet sheet;
-    private String curr_parent;
-    private String next_parent;
     private String curr_value;
     private String next_value;
 
-    private final int min_missing_percentage = 20;
-    private final int min_perc_polymorphic = 20;
-    private final int min_perc_hybridity = 50;
+    private int min_missing_percentage = 20;
+    private int min_perc_polymorphic = 20;
+    private int min_perc_hybridity = 50;
     private String saveas;
 
     int track_parent = 0;
@@ -132,24 +144,19 @@ public class ExcelLogicClass {
     private int missiing = 0;
     private int true_values = 0;
     int maxColumn = 0;
+    private List<String> backheader;
 
-
-//    greencell1.setCellStyle(style);
 
     private void createStyledCell(XSSFCellStyle style, XSSFColor color) {
 //        XSSFCellStyle newStyle = (XSSFCellStyle) workbook.createCellStyle(); // Create new style each time
         style.setFillForegroundColor(color);
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-//        return newStyle;
     }
 
 
     public void start() throws Exception {
 
         Instant start = Instant.now();
-
-
-
         String filename = "/Users/m1/Documents/J_HybridQC/src/main/resources/1000 F1 + parent + 22SNPS.xlsx";
         this.getSheet(filename);
 
@@ -162,7 +169,7 @@ public class ExcelLogicClass {
 
         this.checkPolymorphicParent();
 //        this.checkPolymorphicParentBackup();
-        this.createStatHeaders();
+//        this.createStatHeaders();
         this.f1Check();
         this.createPieChart();
         this.createBarChart();
@@ -176,8 +183,6 @@ public class ExcelLogicClass {
     }
 
     private void createBarChart() {
-
-        System.out.println("===================");
         var efficiencySheet = workbook.createSheet("Efficiency");
         Row header = efficiencySheet.createRow(0);
         header.createCell(0).setCellValue("SNPs");
@@ -193,9 +198,9 @@ public class ExcelLogicClass {
             int num_of_success = (int) rowData[2];
 
             int rowNumber = CellReference.convertColStringToIndex(colLetter);
-            String SNPvalue = sheet.getRow(rowNumber).getCell(0).getStringCellValue();
-
-
+            System.out.println(colLetter);
+            System.out.print(1);
+            String SNPvalue = sheet.getRow(0).getCell(rowNumber).getStringCellValue();
 
             double efficiency_percentage = (double) num_of_success /track_parent * 100;
 //            efficiencySheet.getRow();
@@ -281,6 +286,36 @@ public class ExcelLogicClass {
     private void insertColumns(int startCol, int numCols) {
         int lastRowNum = sheet.getLastRowNum();
 
+        // Get the last cell index in the first non-null row (often the header row)
+        Row firstRow = sheet.getRow(0);
+        if (firstRow == null) return;
+
+        short lastCellNum = firstRow.getLastCellNum();
+        if (lastCellNum < 0) return;
+
+        // ✅ Shift columns to the right starting from (startCol - 1)
+        // This automatically handles all rows (including header row)
+        sheet.shiftColumns(startCol - 1, lastCellNum - 1, numCols);
+
+        // ✅ Now, create empty cells for the new columns
+        for (int rowNum = 0; rowNum <= lastRowNum; rowNum++) {
+            Row row = sheet.getRow(rowNum);
+            if (row == null) {
+                row = sheet.createRow(rowNum);
+            }
+
+            for (int colNum = startCol - 1; colNum < startCol - 1 + numCols; colNum++) {
+                if (row.getCell(colNum) == null) {
+                    row.createCell(colNum);
+                }
+            }
+        }
+    }
+
+
+    private void insertColumnsWorking(int startCol, int numCols) {
+        int lastRowNum = sheet.getLastRowNum();
+
         for (int rowNum = 0; rowNum <= lastRowNum; rowNum++) {
             Row row = sheet.getRow(rowNum);
             if (row == null) continue;
@@ -305,6 +340,52 @@ public class ExcelLogicClass {
                     row.createCell(colNum);
                 }
             }
+        }
+    }
+
+    private List<String> backupHeaderValues() {
+        Row headerRow = sheet.getRow(0);
+        List<String> headers = new ArrayList<>();
+
+        if (headerRow != null) {
+            short lastCellNum = headerRow.getLastCellNum();
+            for (int i = 3; i < lastCellNum; i++) {
+                Cell cell = headerRow.getCell(i);
+                headers.add(cell != null ? cell.getStringCellValue() : "");
+            }
+        }
+
+        return headers;
+    }
+
+    private void createStatHeaders(List<String> existingHeaders) {
+//        setStyleColor(grey);
+
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null)
+            headerRow = sheet.createRow(0);
+
+        // New headers you want to add after insertion
+        String[] newHeaders = {
+                "Sample ID", "Sample Name", "#polymorphic", "%polymorphic", "#parentHet", "%parentHet",
+                "#NonParentAllele", "%NonParentAllele", "#true", "#missing",
+                "%missing", "%hybridity", "Status", "Type"
+        };
+
+        // ✅ Put new headers first, then existing ones
+        List<String> allHeaders = new ArrayList<>(Arrays.asList(newHeaders));
+        allHeaders.addAll(existingHeaders);
+
+        System.out.println(allHeaders.toString());
+
+        // Write them back
+        int colIndex = 0;
+        for (String header : allHeaders) {
+            Cell cell = headerRow.getCell(colIndex);
+            if (cell == null) cell = headerRow.createCell(colIndex);
+            cell.setCellValue(header);
+            cell.setCellStyle(greystyle);
+            colIndex++;
         }
     }
 
@@ -341,7 +422,10 @@ public class ExcelLogicClass {
             if (this.sheet == null) {
                 throw new IllegalStateException("❌ No sheet found in workbook!");
             }
+
+            this.backheader = this.backupHeaderValues();
             this.insertColumns(3, 11);
+            createStatHeaders(backheader);
 
             for (Row row : sheet) {
                 if (row.getLastCellNum() > maxColumn) {
@@ -884,7 +968,7 @@ public class ExcelLogicClass {
     }
 
 
-    private void createStatHeaders() {
+    private void createStatHeadersWorking() {
 
         setStyleColor(grey);
 
@@ -927,12 +1011,7 @@ public class ExcelLogicClass {
 
         int rowIdx = 1;
         for (Object[] rowData : data) {
-//        for (Object[] rowData : data) {
-//            System.out.println(rowIdx);
             Row row = hybriditySheet.createRow(rowIdx++);
-//            System.out.println(rowIdx);
-            System.out.println(rowData[0]);
-            System.out.println(rowData[1]);
             row.createCell(0).setCellValue( (String) rowData[0]);
             row.createCell(1).setCellValue( (Integer) rowData[1]);
 //            row.createCell(1).setCellValue((double) rowData[1];
@@ -1174,12 +1253,6 @@ public class ExcelLogicClass {
     }
 
     private void setF1Stat(){
-//
-//
-//
-//
-//
-
 
         next_row.getCell(missing_col).setCellValue(missiing);
         next_row.getCell(no_outcrossing_col).setCellValue(no_outcross);

@@ -1,11 +1,7 @@
 package com.labysolutions.j_hybridqc;
 
 
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
 
-//@AllArgsConstructor
-//@NoArgsConstructor(force = true)
 public class HybridLogic {
 
     private final String filename;
